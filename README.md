@@ -9,7 +9,7 @@ This Python script renames video files by appending:
 1. Date taken from video metadata (in YYYYMMDD format)
 2. AI-generated caption in PascalCase
 
-The resulting format is: `OriginalName_YYYYMMDD_AiCaption.ext`
+The resulting format is: `YYYYMMDD_AiCaption_OriginalName.ext`
 
 ## Features
 

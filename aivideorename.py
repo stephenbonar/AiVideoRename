@@ -29,6 +29,7 @@ import os
 import sys
 import argparse
 import re
+import string
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, Dict, List
@@ -42,14 +43,14 @@ from transformers import BlipProcessor, BlipForConditionalGeneration
 MODEL_NAME = "Salesforce/blip-image-captioning-base"
 TOKENS_TO_SKIP = {
     'a', 'an', 'the', 'in', 'on', 'at', 'of', 'and', 'or', 'is',
-    'are', 'was', 'were', 'with', 'to', 'for', 'around', 'that'
+    'are', 'was', 'were', 'with', 'to', 'for', 'around', 'that',
 }
 VIDEO_EXTENSIONS = {
     '.mp4', '.avi', '.mov', '.mkv', '.flv', '.wmv',
     '.m4v', '.mpg', '.mpeg', '.3gp', '.webm'
 }
 PROGRAM_NAME = "AI Video Renamer"
-PROGRAM_VERSION = "v1.0.0"
+PROGRAM_VERSION = "v1.1.0"
 PROGRAM_COPYRIGHT = "Copyright (C) 2025 Stephen Bonar"
 
 
@@ -179,12 +180,12 @@ def generate_filename(path: str, date: str, caption: str) -> str:
         caption: AI caption in lowercase
 
     Returns:
-        New filename with format: OriginalName_YYYYMMDD_Caption.ext
+        New filename with format: YYYYMMDD_Caption_OriginalName.ext
     """
     path_obj = Path(path)
     original_name = path_obj.stem
     extension = path_obj.suffix
-    new_name = f"{original_name}_{date}_{caption}{extension}"
+    new_name = f"{date}_{caption}_{original_name}{extension}"
     return new_name
 
 
@@ -192,7 +193,7 @@ def is_already_renamed(filename: str) -> bool:
     """
     Check if a file has already been renamed by this script.
 
-    A renamed file should have format: Name_YYYYMMDD_Caption.ext
+    A renamed file should have format: YYYYMMDD_Caption_OriginalFileName.ext
 
     Args:
         filename: Name of the file (without directory)
@@ -201,7 +202,8 @@ def is_already_renamed(filename: str) -> bool:
         True if file appears to be already renamed, False otherwise
     """
     stem = Path(filename).stem
-    pattern = r'.*_\d{8}_[A-Z][a-zA-Z0-9]*$'
+    # Match: YYYYMMDD_Caption_OriginalFileName (allows spaces and common chars)
+    pattern = r'\d{8}_[A-Z][a-zA-Z0-9]*_.+$'
     return bool(re.match(pattern, stem))
 
 
@@ -233,8 +235,8 @@ def rename_video(
     # We don't want to rename files that are already in the correct format.
     filename = os.path.basename(path)
     if is_already_renamed(filename):
-        print(f"Skipping (already renamed): {path}")
-        return True
+        print(f"Skipping (already renamed): {filename}")
+        return False
 
     # Extract the creation date so we can append it to the filename.
     date_str = extract_creation_date(path)
@@ -259,8 +261,10 @@ def rename_video(
     caption = ""
     caption_tokens = full_caption.split()
     for token in caption_tokens:
-        if token not in TOKENS_TO_SKIP:
-            caption += token.capitalize()
+        # Strip punctuation from each token
+        clean_token = token.translate(str.maketrans('', '', string.punctuation))
+        if clean_token and clean_token not in TOKENS_TO_SKIP:
+            caption += clean_token.capitalize()
 
     # Generate a new path using the new filename so we can rename the file.
     directory = os.path.dirname(path)
@@ -270,7 +274,7 @@ def rename_video(
     # Skip the file if it already exists to avoid overwriting unnecessarily.
     if os.path.exists(new_path) and new_path != path:
         print(
-            f"File already exists, skipping: {new_path}",
+            f"Skipping (file already exists): {new_filename}",
             file=sys.stderr,
         )
         return False
